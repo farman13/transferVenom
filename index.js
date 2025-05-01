@@ -1,10 +1,9 @@
-import { ProviderRpcClient, Address } from "everscale-inpage-provider"
-import { EverscaleStandaloneClient, SimpleAccountsStorage } from "everscale-standalone-client";
+import pkg from 'everscale-standalone-client/nodejs.js';
+const { EverscaleStandaloneClient } = pkg;
 
-const ADMIN_ADDRESS = '0:7c4db728ec21c6719b83997a6c84c889780d6e7fdfb57bdbcda42fc2186a1ea0'
-const ADMIN_PRIVATE_KEY = 'da3e3ce8c4ede283b0b7344834cc72d95096ff192d686e8cf33e551bfc9f43f3'
+import { Contract, Address } from 'everscale-inpage-provider';
 
-const WALLET_ABI = {
+const WalletAbi = {
     'ABI version': 2,
     'version': '2.3',
     'header': ['pubkey', 'time', 'expire'],
@@ -24,69 +23,58 @@ const WALLET_ABI = {
     'events': []
 };
 
-const client = new ProviderRpcClient({
-    fallback: () =>
-        EverscaleStandaloneClient.create({
-            connection: {
-                id: 1,
-                type: 'jrpc',
-                group: 'mainnet',
-                data: {
-                    endpoint: 'https://jrpc.venom.foundation/rpc',
-                },
+const adminKeys = {
+    publicKey: "0b8522e08acd66b0f32787d3b837bd836f2df8316042d3cdee037d8d09309282",
+    secretKey: "da3e3ce8c4ede283b0b7344834cc72d95096ff192d686e8cf33e551bfc9f43f3"
+};
+
+
+async function main() {
+
+    const ever = await EverscaleStandaloneClient.create({
+        connection: {
+            id: 1,
+            group: "mainnet",
+            type: "jrpc",
+            data: {
+                endpoint: "https://jrpc.venom.foundation/rpc",
             },
-        }),
-});
+        },
+    });
+
+    console.log(ever);
+
+    const walletAddress = new Address('0:7c4db728ec21c6719b83997a6c84c889780d6e7fdfb57bdbcda42fc2186a1ea0'); // Replace with actual deployed wallet address
 
 
-console.log("client:", client)
+    const nanoAmount = BigInt(Math.floor(.001 * 1e9));
 
-const TransferVenom = async (receiver, amount) => {
+    const params = {
+        dest: new Address('0:fb444f39cdab4f7d7fc71a0464a7be7c64e883c35d470606677bec7348acd817'),
+        value: nanoAmount.toString(),
+        bounce: false,
+        flags: 3,
+        payload: '',
+    };
 
+    console.log(params);
+
+
+    const walletContract = new Contract(ever, WalletAbi, walletAddress);
+    console.log("Wallet contract is ready:", walletContract.abi.toString());
     try {
-        console.log("1")
-        await client.ensureInitialized();
-        console.log("2")
+        // Send transaction (GIves Error here!!!!!!!!!!!!!!!!!!!!!!!!!!!!)
+        const transaction = await walletContract.methods.sendTransaction(params).send({
+            from: walletAddress, // Sender's wallet address
+            amount: nanoAmount.toString(), // Amount of VENOM to cover transaction costs
+            signer: { keys: { publicKey: adminKeys.publicKey, secretKey: adminKeys.secretKey } }, // Replace with actual signing keys
+        });
 
-        const currentProvider = await client.getProviderState();
-
-        console.log('Current provider state:', currentProvider);
-
-        const accountStorage = new SimpleAccountsStorage();
-
-        accountStorage.addAccount({
-            address: ADMIN_ADDRESS,
-            publickey: '',
-            privatekey: ADMIN_PRIVATE_KEY
-        })
-
-        await client.changeAccount(accountStorage);
-
-        await client.ensureInitialized();
-
-        const contract = new client.Contract(WALLET_ABI, new Address(ADMIN_ADDRESS));
-
-        const nanoAmount = BigInt(Math.floor(amount * 1e9));
-
-        console.log(`Transferring ${amount} VENOM from ${ADMIN_ADDRESS} to ${receiver}...`);
-
-        const params = {
-            dest: new Address(receiver),
-            value: nanoAmount.toString(),
-            bounce: false,
-            flags: 3, // Regular message transfer flag
-            payload: '', // Empty payload for simple transfer
-        }
-
-        const transaction = await contract.methods.sendTransaction(params).sendExternal({
-            publicKey: await accountStorage.getAccount(ADMIN_ADDRESS).publicKey
-        })
-
-        console.log('Transaction successful:', transaction);
+        console.log('Transaction sent:', transaction);
+    } catch (error) {
+        console.error('Error sending transaction:', error);
     }
-    catch (err) {
-        console.log("Error in transfering", err)
-    }
+
 }
 
-TransferVenom('0:fb444f39cdab4f7d7fc71a0464a7be7c64e883c35d470606677bec7348acd817', 0.0001);
+main().catch(console.error);
