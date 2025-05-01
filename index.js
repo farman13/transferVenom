@@ -1,3 +1,7 @@
+// Connecting using just everscale-standalone-client/nodejs.js
+// Got Error bcoz using Contract from everscale-inpage-provider which underthe hood check for this.provider.ensureInitialized
+// while sending transaction.
+
 import pkg from 'everscale-standalone-client/nodejs.js';
 const { EverscaleStandaloneClient } = pkg;
 
